@@ -9,7 +9,16 @@
 	27.07.15 - Used Max 6 main function
 			 - Version 2.007
 	01.08.15 - Recompiled for Spout 2.004 - 32 bit VS2010 - Version 2.007.10
-	TODO : 01.08.15 - Recompiled for Spout 2.004 - 64bit VS2012 - Version 2.007.12
+	01.08.15 - Recompiled for Spout 2.004 - 64bit VS2012 - Version 2.007.12
+	29.10.15 - Removed all Max 6 references
+			 - Debug frame number output
+	01.04.16 - Included detection of 64bit for post of version number
+			 - Recompiled /MT Spout 2.005 - 64bit VS2012 - Version 2.009.12
+			 - Recompiled /MT Spout 2.005 - 32bit VS2012 - Version 2.009.12
+	16.05.16 - Changed Version numbering to allow the Max Package manager
+			   to show 2.0.4 -> 2.0.5 for the package, VS2010 option removed.
+	20.06.16 - Removed frame numbering testing
+			 - Recompiled /MT Spout 2.005 - 64bit and 32bit VS2012 - Version 2.0.5.10
 	----------------------------------------------------
 		
 	Based on :
@@ -45,8 +54,14 @@
 #include "jit.common.h"
 #include "jit.gl.h"
 #include "ext_obex.h"
-
 #include "../../SpoutSDK/Spout.h"
+
+// Check for 64bit compile
+#ifdef _WIN64
+     #define ENV64BIT
+#else
+    #define ENV32BIT
+#endif
 
 typedef struct _max_jit_gl_spout_receiver 
 {
@@ -56,7 +71,6 @@ typedef struct _max_jit_gl_spout_receiver
 	// output texture outlet
 	void			*texout;
     void            *dumpout;
-
 	bool			b_Started;
 
 } t_max_jit_gl_spout_receiver;
@@ -80,13 +94,7 @@ t_symbol *ps_out_texture, *ps_maxdraw, *ps_out_name, *ps_spoutsendername, *ps_cl
 // MAX 7
 void ext_main(void *r)
 {
-
-
-/*
-// MAX 6
-int C74_EXPORT main(void)
-{	
-*/
+	UNREFERENCED_PARAMETER(r);
 
 	t_class *maxclass, *jitclass;
 
@@ -95,16 +103,18 @@ int C74_EXPORT main(void)
 	FILE* pCout; // should really be freed on exit 
 	AllocConsole();
 	freopen_s(&pCout, "CONOUT$", "w", stdout); 
-	printf("jit_gl_spout_receiver - Vers 2.007\n");
+	printf("jit_gl_spout_receiver - Vers 2.0.5.10\n");
 	*/
 
 	// Show the version for reference
-	post("jit_gl_spout_receiver - Vers 2.007.10");
-	// post("jit_gl_spout_receiver - Vers 2.007.12");
+	#ifdef ENV64BIT
+	post("jit_gl_spout_receiver - Vers 2.0.5.10 (64 bit)");
+	#else
+	post("jit_gl_spout_receiver - Vers 2.0.5.10 (32 bit)");
+	#endif
 
 	// initialize our Jitter class
 	jit_gl_spout_receiver_init();	
-	
 	
 	// create our Max class
 	maxclass = class_new("jit.gl.spoutreceiver", 
@@ -127,9 +137,10 @@ int C74_EXPORT main(void)
 	class_addmethod(maxclass, (method)max_jit_gl_spout_receiver_bang, "bang", 0); // TODO - necessary ?
 	class_addmethod(maxclass, (method)max_jit_gl_spout_receiver_draw, "draw", 0);
 	class_addmethod(maxclass, (method)max_jit_gl_spout_receiver_getavailablesenders, "getavailablesenders", 0);
-    
+
    	// use standard ob3d assist method
     class_addmethod(maxclass, (method)max_jit_ob3d_assist, "assist", A_CANT, 0); 
+
 	
 	// add methods for 3d drawing
 	max_jit_class_ob3d_wrap(maxclass);
@@ -146,6 +157,7 @@ int C74_EXPORT main(void)
 
 }
 
+
 void max_jit_gl_spout_receiver_free(t_max_jit_gl_spout_receiver *x)
 {
 
@@ -156,33 +168,49 @@ void max_jit_gl_spout_receiver_free(t_max_jit_gl_spout_receiver *x)
 	max_jit_object_free(x);
 }
 
+
+
 // TODO - necessary ?
 void max_jit_gl_spout_receiver_bang(t_max_jit_gl_spout_receiver *x)
 {
-	max_jit_gl_spout_receiver_draw(x, ps_maxdraw, 0, NULL);
+	UNREFERENCED_PARAMETER(x);
+
+	// printf("max_jit_gl_spout_receiver_bang\n");
+	// max_jit_gl_spout_receiver_draw(x, ps_maxdraw, 0, NULL);
+
+
 }
 
 void max_jit_gl_spout_receiver_draw(t_max_jit_gl_spout_receiver *x, t_symbol *s, long argc, t_atom *argv)
 {
+	UNREFERENCED_PARAMETER(s);
+	UNREFERENCED_PARAMETER(argc);
+	UNREFERENCED_PARAMETER(argv);
+
 	t_atom a;
 
 	// get the jitter object
 	t_jit_object *jitob = (t_jit_object*)max_jit_obex_jitob_get(x);
 	
-	// Call the jitter object's draw method
-	// This is OK but does not seem to be needed - needs tracing
-	t_symbol *attr = gensym("draw");
-	jit_object_method(jitob, attr, s, argc, argv);
+	// Call the jitter object's draw method (from Syphon code)
+
+	// LJ - This causes an error with corrupted texture received in draw
+	// but does not affect the output. Seem to be not needed - needs tracing
+	// t_symbol *attr = gensym("draw");
+	// jit_object_method(jitob, attr, s, argc, argv);
 	
 	// query the texture name and send out the texture output 
 	jit_atom_setsym(&a, jit_attr_getsym(jitob, ps_out_name));
-
 	outlet_anything(x->texout, ps_out_texture, 1, &a);
+
 
 }
 
+
 void *max_jit_gl_spout_receiver_new(t_symbol *s, long argc, t_atom *argv)
 {
+	UNREFERENCED_PARAMETER(s);
+
 	t_max_jit_gl_spout_receiver *x;
 	void *jit_ob;
 	long attrstart;
@@ -216,7 +244,6 @@ void *max_jit_gl_spout_receiver_new(t_symbol *s, long argc, t_atom *argv)
 			// For first sender detection
 			x->b_Started = false;
 
-			
 		} 
 		else {
 			error("jit_gl_spout_receiver : could not allocate object");
@@ -226,6 +253,7 @@ void *max_jit_gl_spout_receiver_new(t_symbol *s, long argc, t_atom *argv)
 	}
 	return (x);
 }
+
 
 void max_jit_gl_spout_receiver_getavailablesenders(t_max_jit_gl_spout_receiver *x)
 {
